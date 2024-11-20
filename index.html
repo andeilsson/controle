@@ -469,4 +469,23 @@
                     'Tipo': mov.tipo.toUpperCase(),
                     'Quantidade': mov.quantidade,
                     'Responsável': mov.responsavel,
-                    'Movimento': mov
+                    'Movimento': mov.Movimento,
+                    'Saldo': mov.saldo
+                }));
+
+                const worksheet = XLSX.utils.json_to_sheet(dadosExportar);
+                const workbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(workbook, worksheet, 'Histórico');
+                XLSX.writeFile(workbook, 'historico_movimentacoes.xlsx');
+            });
+        }
+
+        // Carregar dados quando a página carregar
+        window.addEventListener('load', () => {
+            atualizarTudo();
+        });
+    </script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
