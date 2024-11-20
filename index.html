@@ -6,6 +6,9 @@
     <title>Controle de Materiais</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-auth.js"></script>
     <style>
         .entrada { color: green; font-weight: bold; }
         .saida { color: red; font-weight: bold; }
@@ -126,7 +129,7 @@
                                             <label class="form-label">Movimento</label>
                                             <select id="Movimento" class="form-select" required>
                                                 <option value="Devolução">Devolução</option>
-                                                <option value="Descarte">Descarte</option> 
+                                                <option value="Descarte">Descarte</option>
                                                 <option value="Manutenção">Manutenção</option>
                                             </select>
                                         </div>
@@ -190,288 +193,24 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js"></script>
-    
-    <!-- Inclua a biblioteca do Firebase -->
-    <script src="https://www.gstatic.com/firebasejs/8.6.8/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.6.8/firebase-firestore.js"></script>
-
     <script>
-        // Configurações do Firebase
+        // Firebase configuration
         const firebaseConfig = {
-            apiKey: "SUA_API_KEY",
-            authDomain: "SEU_AUTH_DOMAIN",
-            projectId: "SEU_PROJECT_ID",
-            storageBucket: "SEU_STORAGE_BUCKET",
-            messagingSenderId: "SEU_MESSAGING_SENDER_ID",
-            appId: "SEU_APP_ID"
+            apiKey: "AIzaSyAJgsB5wg2kTdP5zGhEq8KPGvY4bHNJmmU",
+            authDomain: "cadastro-daddd.firebaseapp.com",
+            projectId: "cadastro-daddd",
+            storageBucket: "cadastro-daddd.firebasestorage.app",
+            messagingSenderId: "724654162126",
+            appId: "1:724654162126:web:840724ca0837a45b0cd09f",
+            measurementId: "G-G4VYL9HTEF"
         };
 
-        // Inicialize o Firebase
+        // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
-        // Função para exportar histórico
-        function exportarHistorico() {
-            const movimentacoes = JSON.parse(localStorage.getItem('movimentacoes') || '[]');
-
-            const dadosExportar = movimentacoes.map(mov => ({
-                'Data/Hora': mov.data,
-                'Material': `${mov.material} - ${mov.descricao}`,
-                'Tipo': mov.tipo.toUpperCase(),
-                'Quantidade': mov.quantidade,
-                'Responsável': mov.responsavel,
-                'Movimento': mov.Movimento,
-                'Saldo': mov.saldo
-            }));
-
-            const wb = XLSX.utils.book_new();
-            const ws = XLSX.utils.json_to_sheet(dadosExportar);
-
-            const wscols = [
-                {wch: 20},
-                {wch: 30},
-                {wch: 10},
-                {wch: 12},
-                {wch: 20},
-                {wch: 30},
-                {wch: 10}
-            ];
-            ws['!cols'] = wscols;
-
-            XLSX.utils.book_append_sheet(wb, ws, "Histórico de Movimentações");
-            XLSX.writeFile(wb, "historico_movimentacoes.xlsx");
-        }
-
-        // Função para cadastrar material
-        async function cadastrarMaterial(event) {
-            event.preventDefault();
-            
-            const codigo = document.getElementById('codigo').value;
-            const descricao = document.getElementById('descricao').value;
-            const quantidade = parseInt(document.getElementById('quantidade').value) || 0;
-
-            if (!codigo || !descricao) {
-                alert('Preencha todos os campos!');
-                return;
-            }
-
-            let materiais = JSON.parse(localStorage.getItem('materiais') || '[]');
-            
-            if (materiais.some(m => m.codigo === codigo)) {
-                alert('Este código já está cadastrado!');
-                return;
-            }
-
-            const material = {
-                codigo: codigo,
-                descricao: descricao,
-                quantidade: quantidade,
-                dataCadastro: new Date().toLocaleString()
-            };
-
-            materiais.push(material);
-            localStorage.setItem('materiais', JSON.stringify(materiais));
-
-            if (quantidade > 0) {
-                await registrarMovimentacaoInicial(codigo, descricao, quantidade);
-            }
-
-            document.getElementById('formCadastro').reset();
-            atualizarTudo();
-            alert('Material cadastrado com sucesso!');
-        }
-
-        // Função para registrar movimentação inicial
-        async function registrarMovimentacaoInicial(codigo, descricao, quantidade) {
-            let movimentacoes = JSON.parse(localStorage.getItem('movimentacoes') || '[]');
-            const novaMovimentacao = {
-                data: new Date().toLocaleString(),
-                material: codigo,
-                descricao: descricao,
-                tipo: 'entrada',
-                quantidade: quantidade,
-                responsavel: 'CADASTRO INICIAL',
-                Movimento: 'Cadastro',
-                saldo: quantidade
-            };
-            movimentacoes.unshift(novaMovimentacao);
-            localStorage.setItem('movimentacoes', JSON.stringify(movimentacoes));
-
-            // Salvar no Firestore
-            await db.collection("movimentacoes").add(novaMovimentacao);
-        }
-
-        // Função para registrar movimentação
-        async function registrarMovimentacao(event) {
-            event.preventDefault();
-
-            const materialCodigo = document.getElementById('materialSelect').value;
-            const tipo = document.getElementById('tipoMovimentacao').value;
-            const quantidade = parseInt(document.getElementById('quantidadeMov').value);
-            const responsavel = document.getElementById('responsavel').value;
-            const Movimento = document.getElementById('Movimento').value;
-
-            if (!materialCodigo || !quantidade || !Movimento || !responsavel) {
-                alert('Preencha todos os campos!');
-                return;
-            }
-
-            let materiais = JSON.parse(localStorage.getItem('materiais') || '[]');
-            let material = materiais.find(m => m.codigo === materialCodigo);
-
-            if (!material) {
-                alert('Material não encontrado!');
-                return;
-            }
-
-            if (tipo === 'saida' && material.quantidade < quantidade) {
-                alert('Quantidade insuficiente em estoque!');
-                return;
-            }
-
-            // Atualizar quantidade
-            material.quantidade += tipo === 'entrada' ? quantidade : -quantidade;
-
-            // Registrar movimentação
-            let movimentacoes = JSON.parse(localStorage.getItem('movimentacoes') || '[]');
-            const novaMovimentacao = {
-                data: new Date().toLocaleString(),
-                material: materialCodigo,
-                descricao: material.descricao,
-                tipo: tipo,
-                quantidade: quantidade,
-                responsavel: responsavel,
-                Movimento: Movimento,
-                saldo: material.quantidade
-            };
-
-            movimentacoes.unshift(novaMovimentacao);
-            localStorage.setItem('materiais', JSON.stringify(materiais));
-            localStorage.setItem('movimentacoes', JSON.stringify(movimentacoes));
-
-            // Salvar no Firestore
-            await db.collection("movimentacoes").add(novaMovimentacao);
-
-            document.getElementById('formMovimentacao').reset();
-            atualizarTudo();
-            alert('Movimentação registrada com sucesso!');
-        }
-
-        // Função para pesquisar no histórico
-        function pesquisarHistorico() {
-            const pesquisa = document.getElementById('pesquisaHistorico').value.toLowerCase();
-            const movimentacoes = JSON.parse(localStorage.getItem('movimentacoes') || '[]');
-            const filteredMovimentacoes = movimentacoes.filter(mov => 
-                mov.material.toLowerCase().includes(pesquisa) || 
-                mov.responsavel.toLowerCase().includes(pesquisa)
-            );
-
-            const tbody = document.getElementById('historicoMovimentacoes');
-            tbody.innerHTML = filteredMovimentacoes.map(mov => `
-                <tr>
-                    <td>${mov.data}</td>
-                    <td>${mov.material} - ${mov.descricao}</td>
-                    <td class="${mov.tipo}">${mov.tipo.toUpperCase()}</td>
-                    <td>${mov.quantidade}</td>
-                    <td>${mov.responsavel}</td>
-                    <td>${mov.Movimento}</td>
-                    <td>${mov.saldo}</td>
-                </tr>
-            `).join('');
-        }
-
-        // Função para excluir a última linha do histórico
-        function excluirUltimaLinha() {
-            const movimentacoes = JSON.parse(localStorage.getItem('movimentacoes') || '[]');
-            
-            if (movimentacoes.length === 0) {
-                alert('Não há movimentações para excluir!');
-                return;
-            }
-
-            const credencial = prompt('Digite sua credencial para confirmar a exclusão:');
-
-            // Verifique a credencial
-            if (credencial !== '123456') {
-                alert('Credencial incorreta. A exclusão foi cancelada.');
-                return;
-            }
-
-            // Excluir a última movimentação
-            movimentacoes.pop(); // Remove a última movimentação
-            localStorage.setItem('movimentacoes', JSON.stringify(movimentacoes));
-            atualizarHistorico(); // Atualiza a tabela após a exclusão
-            alert('Última movimentação excluída com sucesso!');
-        }
-
-        // Função para excluir material
-        function excluirMaterial(codigo) {
-            const credencial = prompt('Digite sua credencial para confirmar a exclusão:');
-            if (credencial !== '123456') {
-                alert('Credencial incorreta. A exclusão foi cancelada.');
-                return;
-            }
-
-            let materiais = JSON.parse(localStorage.getItem('materiais') || '[]');
-            materiais = materiais.filter(m => m.codigo !== codigo);
-            localStorage.setItem('materiais', JSON.stringify(materiais));
-            atualizarTudo();
-            alert('Material excluído com sucesso!');
-        }
-
-        // Função para atualizar lista de materiais
-        function atualizarListaMateriais() {
-            const materiais = JSON.parse(localStorage.getItem('materiais') || '[]');
-            const lista = document.getElementById('listaMateriais');
-            
-            if (materiais.length === 0) {
-                lista.innerHTML = '<p>Nenhum material cadastrado.</p>';
-                return;
-            }
-
-            lista.innerHTML = materiais.map(material => `
-                <div class="material-item">
-                    <strong>Código: ${material.codigo}</strong><br>
-                    Descrição: ${material.descricao}<br>
-                    Quantidade: ${material.quantidade}<br>
-                    <small class="text-muted">Cadastrado em: ${material.dataCadastro}</small><br>
-                    <button class="btn btn-danger btn-sm" onclick="excluirMaterial('${material.codigo}')">Excluir</button>
-                </div>
-            `).join('');
-        }
-
-        // Função para atualizar select de materiais
-        function atualizarSelectMateriais() {
-            const materiais = JSON.parse(localStorage.getItem('materiais') || '[]');
-            const select = document.getElementById('materialSelect');
-            if (select) {
-                select.innerHTML = '<option value="">Selecione um material</option>' + 
-                    materiais.map(material => `
-                        <option value="${material.codigo}">
-                            ${material.codigo} - ${material.descricao} (Estoque: ${material.quantidade})
-                        </option>
-                    `).join('');
-            }
-        }
-
-        // Função para atualizar histórico
-        function atualizarHistorico() {
-            const movimentacoes = JSON.parse(localStorage.getItem('movimentacoes') || '[]');
-            const tbody = document.getElementById('historicoMovimentacoes');
-            
-            if (tbody) {
-                tbody.innerHTML = movimentacoes.map(mov => `
-                    <tr>
-                        <td>${mov.data}</td>
-                        <td>${mov.material} - ${mov.descricao}</td>
-                        <td class="${mov.tipo}">${mov.tipo.toUpperCase()}</td>
-                        <td>${mov.quantidade}</td>
-                        <td>${mov.responsavel}</td>
-                        <td>${mov.Movimento}</td>
-                        <td>${mov.saldo}</td>
-                    </tr>
-                `).join('');
-            }
-        }
-
-        // Função para
+        // Implement your existing functions with Firebase integration
+        // ...
+    </script>
+</body>
+</html>
