@@ -5,16 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Controle de Materiais</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
-    <style>
-        .material-item {
-            padding: 10px;
-            margin-bottom: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            background-color: #f8f9fa;
-        }
-    </style>
 </head>
 <body class="bg-light">
     <div class="container my-4">
@@ -44,8 +34,11 @@
         
         <!-- Lista de Materiais -->
         <div class="card mt-4">
-            <div class="card-header bg-success text-white">
+            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Materiais Cadastrados</h5>
+                <button onclick="carregarMateriais()" class="btn btn-light btn-sm">
+                    Atualizar Lista
+                </button>
             </div>
             <div class="card-body">
                 <div id="listaMateriais"></div>
@@ -54,96 +47,91 @@
     </div>
 
     <script>
-        // URL da API do Google Apps Script
         const apiUrl = 'https://script.google.com/macros/s/AKfycbzx3_VG69mlsJ48gHH6ZupWLDzYWrcMu33a0Hx5_4AlUhw-dPS-RgmzxUXSWhWEwXIJ/exec';
 
-        // Função para carregar dados do Google Sheets
-        function carregarMateriais() {
-            fetch(apiUrl)
-                .then(response => response.text())
-                .then(data => {
-                    console.log('Dados recebidos:', data); // Debug
-                    const resultados = Papa.parse(data, { 
-                        header: true,
-                        skipEmptyLines: true
-                    });
-                    console.log('Dados parseados:', resultados.data); // Debug
-                    atualizarListaMateriais(resultados.data);
-                })
-                .catch(error => {
-                    console.error('Erro ao carregar materiais:', error);
-                    document.getElementById('listaMateriais').innerHTML = '<p class="text-danger">Erro ao carregar materiais.</p>';
-                });
+        // Função para carregar dados
+        async function carregarMateriais() {
+            try {
+                const response = await fetch(apiUrl);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                
+                const data = await response.json();
+                console.log('Dados recebidos:', data);
+                
+                atualizarListaMateriais(data);
+            } catch (erro) {
+                console.error('Erro ao carregar materiais:', erro);
+                document.getElementById('listaMateriais').innerHTML = 
+                    `<div class="alert alert-danger">Erro ao carregar materiais: ${erro.message}</div>`;
+            }
         }
 
-        // Função para cadastrar material
-        function cadastrarMaterial(event) {
+        // Função para cadastrar
+        async function cadastrarMaterial(event) {
             event.preventDefault();
             
-            const codigo = document.getElementById('codigo').value;
-            const descricao = document.getElementById('descricao').value;
-            const quantidade = parseInt(document.getElementById('quantidade').value) || 0;
+            const codigo = document.getElementById('codigo').value.trim();
+            const descricao = document.getElementById('descricao').value.trim();
+            const quantidade = document.getElementById('quantidade').value;
 
-            if (!codigo || !descricao || quantidade < 0) {
-                alert('Preencha todos os campos corretamente!');
-                return;
-            }
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        codigo,
+                        descricao,
+                        quantidade
+                    })
+                });
 
-            // Enviando dados para a API
-            fetch(apiUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: new URLSearchParams({
-                    codigo: codigo,
-                    descricao: descricao,
-                    quantidade: quantidade
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
+                const data = await response.json();
+                
                 if (data.status === "success") {
                     alert('Material cadastrado com sucesso!');
                     document.getElementById('formCadastro').reset();
-                    setTimeout(carregarMateriais, 1000); // Espera 1 segundo antes de recarregar
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    await carregarMateriais();
                 } else {
-                    alert('Erro: ' + data.message);
+                    throw new Error(data.message || 'Erro desconhecido');
                 }
-            })
-            .catch(error => {
-                console.error('Erro ao cadastrar material:', error);
-                alert('Erro ao cadastrar material. Verifique o console para mais detalhes.');
-            });
+            } catch (erro) {
+                console.error('Erro no cadastro:', erro);
+                alert(`Erro ao cadastrar: ${erro.message}`);
+            }
         }
 
-        // Função para atualizar a lista de materiais
+        // Função para atualizar lista
         function atualizarListaMateriais(materiais) {
             const lista = document.getElementById('listaMateriais');
             
             if (!materiais || materiais.length === 0) {
-                lista.innerHTML = '<p>Nenhum material cadastrado.</p>';
+                lista.innerHTML = '<div class="alert alert-info">Nenhum material cadastrado.</div>';
                 return;
             }
 
-            lista.innerHTML = materiais.map(material => `
-                <div class="material-item">
-                    <strong>Código: ${material.codigo || material.Codigo || material.código || ''}</strong><br>
-                    Descrição: ${material.descricao || material.Descricao || material.descrição || ''}<br>
-                    Quantidade: ${material.quantidade || material.Quantidade || '0'}
+            const html = materiais.map(material => `
+                <div class="card mb-2">
+                    <div class="card-body">
+                        <h5 class="card-title">Código: ${material.codigo}</h5>
+                        <p class="card-text">
+                            <strong>Descrição:</strong> ${material.descricao}<br>
+                            <strong>Quantidade:</strong> ${material.quantidade}
+                        </p>
+                    </div>
                 </div>
             `).join('');
+
+            lista.innerHTML = html;
         }
 
-        // Chame carregarMateriais ao iniciar
-        window.onload = function() {
-            carregarMateriais();
-        };
+        // Carrega dados iniciais
+        document.addEventListener('DOMContentLoaded', carregarMateriais);
 
-        // Adiciona recarregamento automático a cada 30 segundos
+        // Recarrega a cada 30 segundos
         setInterval(carregarMateriais, 30000);
     </script>
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
